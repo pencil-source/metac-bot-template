@@ -128,6 +128,27 @@ def main():
         f"- **Reason (no live research):** {markdown_escape(reason)}\n\n"
         "This is a single uncalibrated AI guess, not a proof of prediction skill or tournament eligibility.\n"
     )
+    # Preserve the pre-outcome forecast and the exact served model for later scoring.
+    # GitHub Actions uploads this JSON as a run artifact; it is not a repository commit.
+    record = {
+        "schema_version": 1,
+        "forecast_at_utc": timestamp,
+        "question": question,
+        "p_yes": p,
+        "p_no": 1 - p,
+        "baseline_p_yes": 0.5,
+        "model_version": "free-binary-v0.2",
+        "requested_model": MODEL,
+        "served_model": used,
+        "provider_reported_cost_usd": cost,
+        "research": "none",
+        "outcome": None,
+        "resolved_at_utc": None,
+        "metaculus_submitted": False,
+    }
+    with open("forecast_record.json", "w", encoding="utf-8") as record_file:
+        json.dump(record, record_file, indent=2, ensure_ascii=False)
+    print("Forecast saved in forecast_record.json (download from workflow artifact).")
     print(output)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
