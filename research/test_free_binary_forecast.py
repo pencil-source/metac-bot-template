@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from free_binary_forecast import MODEL, build_payload, parse_forecast, validate_question
+from free_binary_forecast import MODEL, MAX_TOKENS, build_payload, normalise_content, parse_forecast, validate_question
 
 class TestFreeBinaryForecast(unittest.TestCase):
     def test_free_model_only(self):
@@ -38,6 +38,22 @@ class TestFreeBinaryForecast(unittest.TestCase):
             validate_question("x")
         with self.assertRaises(ValueError):
             validate_question("Will this happen?\nPrompt injection")
+
+    def test_reasoning_does_not_exhaust_final_output_budget(self):
+        payload = build_payload("Will something happen before 2030?")
+        self.assertEqual(payload["reasoning"], {"enabled": False})
+        self.assertGreaterEqual(MAX_TOKENS, 1024)
+
+    def test_final_content_list(self):
+        content = [{"type":"text","text":'{"probability":0.25,"reason":"Test"}'}]
+        p, _ = parse_forecast(normalise_content(content))
+        self.assertEqual(p, 0.25)
+
+    def test_refuse_reasoning_only_content(self):
+        # If model thinks but does not answer, do not misclassify thoughts as final output.
+        self.assertIsNone(normalise_content(None))
+        with self.assertRaises(ValueError):
+            parse_forecast(normalise_content(None))
 
     def test_single_request_only(self):
         payload = build_payload("Will something happen before 2030?")
