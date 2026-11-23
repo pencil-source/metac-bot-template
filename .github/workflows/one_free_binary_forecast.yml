@@ -1,0 +1,32 @@
+name: One free binary forecast (dry-run only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      question:
+        description: "Public binary question, no personal data (visible in public logs)"
+        required: true
+        type: string
+        default: "Will humans land on Mars before January 1, 2030?"
+
+permissions:
+  contents: read
+
+jobs:
+  research_forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run offline unit tests
+        run: python -m unittest discover -s research -p "test_free_binary_forecast.py" -v
+      - name: Run one free-only forecast (no posting)
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          FORECAST_QUESTION: ${{ inputs.question }}
+        run: python research/free_binary_forecast.py
