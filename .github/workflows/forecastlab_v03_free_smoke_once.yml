@@ -1,0 +1,38 @@
+name: PencilForecast v0.3 integration smoke test (one free call)
+
+# Triggers once when the one-time marker is committed; after that manual only.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "research/FREE_FORECAST_SMOKE_TRIGGER_20261124.md"
+
+permissions:
+  contents: read
+
+jobs:
+  one_free_forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Offline validation before contacting the model
+        run: python -m unittest discover -s research -p "test_forecastlab_v03.py" -q
+      - name: One free-only forecast on a public Metaculus question (NO POST to Metaculus)
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          python research/forecastlab_v03.py forecast --post-id 46544 --max-questions 1 --max-days 365 --out research_smoke
+      - name: Archive the original prediction and API snapshot (90 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pencil-forecast-v03-smoke
+          path: research_smoke/
+          if-no-files-found: warn
+          retention-days: 90
