@@ -7,3 +7,5 @@ No OpenRouter calls, paid API calls, Metaculus POST, or recurring schedule.
 Do not edit this marker again unless deliberately re-testing.
 
 One deliberate read-only retry to diagnose artifact loading (no LLM calls).
+
+Third read-only verification after fixing token stripping on 302 artifact redirect.
