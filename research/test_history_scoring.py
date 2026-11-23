@@ -106,16 +106,16 @@ class HistoryScoringTests(unittest.TestCase):
         artifacts={"artifacts":[{"id":200,"name":"pencil-forecast-research","expired":False}]}
         def response(path,token):
             return runs if path.endswith("runs?per_page=100") else artifacts
-        def archive(id,token):
-            return zipped_forecasts(fake_record(
-                "2026-11-25T00:00:00+00:00",.9) if id==200 else fake_record())
+        artifacts_in_order=iter([
+            zipped_forecasts(fake_record("2026-11-25T00:00:00+00:00",.9)),
+            zipped_forecasts(fake_record("2026-11-24T00:00:00+00:00",.7))
+        ])
         with patch.object(history,"github_get_json",side_effect=response),\
-             patch.object(history,"github_get_artifact_zip",side_effect=lambda aid,key:
-                          zipped_forecasts(fake_record("2026-11-25T00:00:00+00:00",.9))
-                          if getattr(history,"_test_counter",0)==0 else zipped_forecasts(fake_record())):
-            # Both runs yield the same question; any repeated forecast must be excluded.
+             patch.object(history,"github_get_artifact_zip",side_effect=lambda aid,key: next(artifacts_in_order)):
+            # Choose the earliest forecast, never the later more accurate-looking one.
             selected,meta=history.load_history("FAKE",2)
         self.assertEqual(len(selected),1)
+        self.assertEqual(selected[0]["p_yes"],.7)
         self.assertEqual(meta["duplicates_ignored"],1)
 
     def test_max_runs_bounded(self):
