@@ -1,0 +1,39 @@
+name: PencilForecast v0.3 - history score (read only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "research/HISTORY_SYNC_ONCE_20261124.md"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Offline history and forecast tests
+        run: |
+          python -m unittest discover -s research -p "test_history_scoring.py" -v
+          python -m unittest discover -s research -p "test_forecastlab_v03.py" -v
+      - name: Read archived predictions and visible Metaculus outcomes only
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+        run: python research/history_scoring.py --max-runs 25 --out history_audit
+      - name: Retain audit and evidence (90 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pencil-forecast-history-audit
+          path: history_audit/
+          if-no-files-found: warn
+          retention-days: 90
