@@ -10,7 +10,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "openrouter/free"  # No paid fallback; served free model may vary.
+MODEL = "nvidia/nemotron-3.5-super-vl:free"  # Pinned free model; fail closed if unavailable.
 MAX_TOKENS = 650
 
 def validate_question(question):
