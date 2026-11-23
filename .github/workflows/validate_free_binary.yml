@@ -1,0 +1,27 @@
+name: Validate one-shot dry-run code
+
+on:
+  pull_request:
+    paths:
+      - "research/free_binary_forecast.py"
+      - "research/test_free_binary_forecast.py"
+      - ".github/workflows/one_free_binary_forecast.yml"
+      - ".github/workflows/validate_free_binary.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python
+        run: python -m py_compile research/free_binary_forecast.py research/test_free_binary_forecast.py
+      - name: Run offline tests (no keys or network)
+        run: python -m unittest discover -s research -p "test_free_binary_forecast.py" -v
