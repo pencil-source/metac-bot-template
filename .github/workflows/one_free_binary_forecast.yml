@@ -7,7 +7,7 @@ on:
         description: "Public binary question, no personal data (visible in public logs)"
         required: true
         type: string
-        default: "Will humans land on Mars before January 1, 2030?"
+        default: "Will the Japan Meteorological Agency record a maximum temperature of at least 20 degrees Celsius at its Tokyo station on November 30, 2026 (JST)?"
 
 permissions:
   contents: read
