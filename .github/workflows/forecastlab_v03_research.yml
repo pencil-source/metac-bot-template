@@ -1,0 +1,68 @@
+name: PencilForecast v0.3 - research (manual, free only)
+
+# Deliberately manual only. NO schedule, Metaculus forecasts or paid routes.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "discover = API only (0 LLM calls), forecast = at most 3 free calls"
+        required: true
+        default: discover
+        type: choice
+        options:
+          - discover
+          - forecast
+      post_id:
+        description: "Optional exact Metaculus post ID (0 = discover eligible open posts)"
+        required: true
+        default: "0"
+        type: string
+      max_questions:
+        description: "Hard maximum 1-3 questions; recommend 1 to begin"
+        required: true
+        default: "1"
+        type: choice
+        options: ["1", "2", "3"]
+      max_days:
+        description: "Only future questions expected to resolve within N days (1-365)"
+        required: true
+        default: "120"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout research code
+        uses: actions/checkout@v4
+      - name: Python 3.11 (standard library only)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run offline tests before any API access
+        run: python -m unittest discover -s research -p "test_forecastlab_v03.py" -v
+      - name: Read eligible open questions; optionally forecast via pinned FREE model
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MODE: ${{ inputs.mode }}
+          POST_ID: ${{ inputs.post_id }}
+          MAX_QUESTIONS: ${{ inputs.max_questions }}
+          MAX_DAYS: ${{ inputs.max_days }}
+        run: |
+          set -eu
+          case "$MODE" in discover|forecast) ;; *) echo "Invalid mode" >&2; exit 2 ;; esac
+          python -c 'import os; p=int(os.environ["POST_ID"]); d=int(os.environ["MAX_DAYS"]); q=int(os.environ["MAX_QUESTIONS"]); assert p>=0 and 1<=d<=365 and 1<=q<=3'
+          python research/forecastlab_v03.py "$MODE" --post-id "$POST_ID" --max-questions "$MAX_QUESTIONS" --max-days "$MAX_DAYS" --out research_output
+      - name: Save questions and original forecasts (no secrets; 90 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pencil-forecast-research
+          path: research_output/
+          if-no-files-found: warn
+          retention-days: 90
