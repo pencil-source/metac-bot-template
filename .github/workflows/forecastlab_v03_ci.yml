@@ -1,0 +1,42 @@
+name: Validate PencilForecast v0.3 offline
+
+on:
+  pull_request:
+    paths:
+      - "research/forecastlab_v03.py"
+      - "research/test_forecastlab_v03.py"
+      - "research/FORECASTLAB_JA.md"
+      - ".github/workflows/forecastlab_v03_research.yml"
+      - ".github/workflows/forecastlab_v03_ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile and offline unit tests
+        run: |
+          python -m py_compile research/forecastlab_v03.py research/test_forecastlab_v03.py
+          python -m unittest discover -s research -p "test_forecastlab_v03.py" -v
+      - name: Ensure workflows are not scheduled and model is pinned free
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'research')
+          import forecastlab_v03 as lab
+          wf=Path('.github/workflows/forecastlab_v03_research.yml').read_text()
+          assert lab.FREE_MODEL.endswith(':free')
+          assert lab.MAX_QUESTIONS <= 3
+          assert 'schedule:' not in wf
+          assert '/questions/forecast/' not in Path('research/forecastlab_v03.py').read_text()
+          print('Safety checks OK')
+          PY

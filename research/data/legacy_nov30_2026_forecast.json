@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "forecast_at_utc": "2026-11-23T19:02:38+00:00",
+  "question": "Will the Japan Meteorological Agency record a maximum temperature of at least 20 degrees Celsius at its Tokyo station on November 30, 2026 (JST)?",
+  "p_yes": 0.28,
+  "p_no": 0.72,
+  "baseline_p_yes": 0.5,
+  "model_version": "free-binary-v0.2",
+  "requested_model": "nvidia/nemotron-3.5-super-vl:free",
+  "served_model": "nvidia/nemotron-3.5-super-vl:free",
+  "provider_reported_cost_usd": 0,
+  "research": "none",
+  "outcome": null,
+  "resolved_at_utc": null,
+  "metaculus_submitted": false
+}
