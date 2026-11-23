@@ -111,7 +111,8 @@ def load_history(token, max_runs=MAX_RUNS):
                 rows=decode_forecasts(github_get_artifact_zip(int(art["id"]),token))
                 records.extend(rows)
         except (RuntimeError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
-            problems.append(f"run {run.get('id')}: {type(exc).__name__}")
+            # These exception messages contain only status codes/types, not URLs or keys.
+            problems.append(f"run {run.get('id')}: {type(exc).__name__}: {str(exc)[:150]}")
     earliest={}
     for rec in records:
         key=rec["question_id"]
@@ -207,6 +208,7 @@ def main(argv=None):
         f"Still pending, hidden, or ambiguous: {len(pending)}",
         f"GitHub artifact read issues: {len(meta['download_errors'])}",
         f"Metaculus read issues: {len(errors)}",
+        *[f"Artifact issue: {issue}" for issue in meta['download_errors']],
         "",
         "Not visible does NOT mean NO. No live tournament submission or paid inference.",
         "API account permissions can hide resolutions for questions without a posted forecast.",
