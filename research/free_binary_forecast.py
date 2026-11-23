@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "nvidia/nemotron-3.5-super-vl:free"  # Pinned free model; fail closed if unavailable.
-MAX_TOKENS = 650
+MAX_TOKENS = 2048  # Leave room for visible output even if a provider reasons.
 
 def validate_question(question):
     question = question.strip()
@@ -20,6 +20,21 @@ def validate_question(question):
     if "\n" in question or "\r" in question:
         raise ValueError("Question must fit on one line.")
     return question
+
+def normalise_content(content):
+    """Use final content only. Never turn the model's private reasoning into a forecast."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            part.get("text", "")
+            for part in content
+            if isinstance(part, dict)
+            and part.get("type") in ("text", "output_text")
+            and isinstance(part.get("text"), str)
+        )
+    return None
+
 
 def parse_forecast(text):
     """Parse strict JSON or a fenced JSON object without guessing probabilities."""
@@ -67,6 +82,7 @@ def build_payload(question):
             {"role": "user", "content": "Give a YES probability for this future binary question: " + question},
         ],
         "max_tokens": MAX_TOKENS,
+        "reasoning": {"enabled": False},  # Request direct answer (not always honored).
         "stream": False,
     }
 
@@ -106,8 +122,23 @@ def main():
         return 1
 
     try:
-        message = data["choices"][0]["message"]
-        p, reason = parse_forecast(message.get("content"))
+        choice = data["choices"][0]
+        message = choice["message"]
+        visible_text = normalise_content(message.get("content"))
+        if not visible_text or not visible_text.strip():
+            # Only public diagnostic metadata; do not expose reasoning or API credentials.
+            usage = data.get("usage") or {}
+            completion_details = usage.get("completion_tokens_details") or {}
+            print(
+                "No final text returned by provider; "
+                f"finish_reason={choice.get('finish_reason')!r}; "
+                f"completion_tokens={usage.get('completion_tokens', 'not reported')}; "
+                f"reasoning_tokens={completion_details.get('reasoning_tokens', 'not reported')}. "
+                "No probability recorded.",
+                file=sys.stderr,
+            )
+            return 1
+        p, reason = parse_forecast(visible_text)
     except (IndexError, KeyError, TypeError, ValueError) as exc:
         print(f"Forecast parsing failed: {exc}", file=sys.stderr)
         return 1
