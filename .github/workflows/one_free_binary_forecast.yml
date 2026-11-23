@@ -30,3 +30,10 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           FORECAST_QUESTION: ${{ inputs.question }}
         run: python research/free_binary_forecast.py
+      - name: Retain pre-outcome forecast record (90 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: forecast-record
+          path: forecast_record.json
+          if-no-files-found: error
+          retention-days: 90
