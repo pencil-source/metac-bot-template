@@ -1,0 +1,38 @@
+name: PencilForecast v0.3 read-only API compatibility probe
+
+# This push marker is intended for a single harmless API compatibility check.
+# Ordinary code changes do not match the push path.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "research/API_PROBE_TRIGGER_20261124.md"
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python (standard library)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Read Metaculus open binary questions only (NO LLM)
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+        run: |
+          python research/forecastlab_v03.py discover --max-days 365 --max-questions 3 --out research_api_probe
+      - name: Retain sanitized question snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metaculus-readonly-question-snapshot
+          path: research_api_probe/
+          if-no-files-found: warn
+          retention-days: 30
