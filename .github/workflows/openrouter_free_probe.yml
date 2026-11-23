@@ -1,0 +1,32 @@
+name: Probe OpenRouter (free only)
+
+# User-triggered ONLY. Never starts automatically.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  free_only_probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify free-only model and one request
+        run: |
+          python - <<'PY'
+          from research.openrouter_free_probe import MODEL, MAX_TOKENS
+          assert MODEL == "openrouter/free"
+          assert MAX_TOKENS <= 32
+          print("Verified: free model router, capped response length")
+          PY
+      - name: Test one free-only OpenRouter request
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: python research/openrouter_free_probe.py
