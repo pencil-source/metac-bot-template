@@ -8,7 +8,7 @@ from free_binary_forecast import MODEL, build_payload, parse_forecast, validate_
 
 class TestFreeBinaryForecast(unittest.TestCase):
     def test_free_model_only(self):
-        self.assertEqual(MODEL, "openrouter/free")
+        self.assertEqual(MODEL, "nvidia/nemotron-3.5-super-vl:free")
         self.assertEqual(build_payload("Will something happen by 2030?")["model"], MODEL)
 
     def test_parse(self):
