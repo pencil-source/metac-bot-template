@@ -1,0 +1,4 @@
+question_id,forecast_at,resolved_at,prediction,baseline,outcome,model_version,cost_usd
+synthetic-1,2026-10-01T08:00:00+09:00,2026-11-01T08:00:00+09:00,0.70,0.50,1,v0.1,0
+synthetic-2,2026-10-01T08:00:00+09:00,2026-11-01T08:00:00+09:00,0.40,0.50,0,v0.1,0
+synthetic-3,2026-11-01T08:00:00+09:00,,0.60,0.50,,v0.1,0

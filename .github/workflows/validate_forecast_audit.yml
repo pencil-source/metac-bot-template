@@ -1,0 +1,29 @@
+name: Validate offline forecast audit
+
+on:
+  pull_request:
+    paths:
+      - "research/forecast_audit.py"
+      - "research/test_forecast_audit.py"
+      - "research/data/SYNTHETIC_EXAMPLE.csv"
+      - ".github/workflows/validate_forecast_audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test_audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile code
+        run: python -m py_compile research/forecast_audit.py research/test_forecast_audit.py
+      - name: Run 8 offline audit tests
+        run: python -m unittest discover -s research -p "test_forecast_audit.py" -v
+      - name: Check synthetic example
+        run: python research/forecast_audit.py research/data/SYNTHETIC_EXAMPLE.csv --out /tmp/audit.md
