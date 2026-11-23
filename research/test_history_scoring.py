@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from urllib.error import HTTPError
 from unittest.mock import patch
 from zipfile import ZipFile
 
@@ -117,6 +118,37 @@ class HistoryScoringTests(unittest.TestCase):
         self.assertEqual(len(selected),1)
         self.assertEqual(selected[0]["p_yes"],.7)
         self.assertEqual(meta["duplicates_ignored"],1)
+
+    def test_github_token_is_not_sent_to_artifact_blob_host(self):
+        api_url="https://api.github.com/repos/pencil-source/metac-bot-template/actions/artifacts/123/zip"
+        signed="https://productionresultssa.blob.core.windows.net/example/zip?sig=secret"
+        class FakeOpener:
+            def open(self, request, timeout):
+                raise HTTPError(api_url,302,"Found",{"Location":signed},BytesIO(b""))
+        class FakeResponse:
+            headers={"Content-Length":"3"}
+            def read(self, limit): return b"ZIP"
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+        with patch.object(history.urllib.request,"build_opener",return_value=FakeOpener()),\
+             patch.object(history.urllib.request,"urlopen",return_value=FakeResponse()) as forwarded:
+            result=history.github_get_artifact_zip(123,"GITHUB_SECRET")
+        self.assertEqual(result,b"ZIP")
+        requested=forwarded.call_args.args[0]
+        self.assertEqual(requested.full_url,signed)
+        self.assertNotIn("authorization",[k.lower() for k in requested.headers])
+
+    def test_untrusted_artifact_redirect_is_rejected(self):
+        api_url="https://api.github.com/repos/pencil-source/metac-bot-template/actions/artifacts/123/zip"
+        class FakeOpener:
+            def open(self, request, timeout):
+                raise HTTPError(api_url,302,"Found",
+                                {"Location":"https://untrusted.example/steal"},BytesIO(b""))
+        with patch.object(history.urllib.request,"build_opener",return_value=FakeOpener()),\
+             patch.object(history.urllib.request,"urlopen") as forwarded:
+            with self.assertRaisesRegex(RuntimeError,"Unexpected artifact redirect"):
+                history.github_get_artifact_zip(123,"GITHUB_SECRET")
+            forwarded.assert_not_called()
 
     def test_max_runs_bounded(self):
         with self.assertRaises(ValueError):
