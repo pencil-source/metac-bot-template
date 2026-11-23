@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import sys
+from urllib.parse import urlsplit
 import urllib.error
 import urllib.request
 from zipfile import ZipFile, BadZipFile
@@ -38,29 +39,69 @@ def github_get_json(path, token):
                  "X-GitHub-Api-Version":"2022-11-28"})
 
 def github_get_artifact_zip(artifact_id, token):
-    """GitHub returns a temporary download redirect; never log signed URLs."""
-    if not isinstance(artifact_id,int) or artifact_id <= 0:
+    """Download only GitHub-signed artifact ZIPs; never forward GitHub credentials.
+
+    GitHub REST returns a 302 redirect to an object store. Sending the GitHub
+    Bearer token to that second host may trigger HTTP 401 and leaks a credential.
+    Handle that redirect explicitly and request the signed URL WITHOUT auth.
+    """
+    if not isinstance(artifact_id, int) or artifact_id <= 0:
         raise ValueError("Invalid artifact ID")
-    request = urllib.request.Request(
-        f"{GITHUB_API}/repos/{REPO}/actions/artifacts/{artifact_id}/zip",
-        headers={"Authorization":"Bearer "+token,
-                 "Accept":"application/vnd.github+json",
-                 "X-GitHub-Api-Version":"2022-11-28",
-                 "User-Agent":"PencilForecastResearch/0.3"},
-        method="GET")
+    url = f"{GITHUB_API}/repos/{REPO}/actions/artifacts/{artifact_id}/zip"
+    headers = {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "PencilForecastResearch/0.3",
+    }
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    opener = urllib.request.build_opener(NoRedirect)
+    signed_url = None
     try:
-        with urllib.request.urlopen(request, timeout=35) as response:
-            if response.headers.get("Content-Length"):
-                if int(response.headers["Content-Length"]) > MAX_ZIP_BYTES:
-                    raise ValueError("Artifact exceeds size limit")
-            content=response.read(MAX_ZIP_BYTES+1)
+        try:
+            response = opener.open(
+                urllib.request.Request(url, headers=headers, method="GET"),
+                timeout=35)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (301, 302, 303, 307, 308):
+                raise RuntimeError(f"Artifact API rejected download (HTTP {exc.code})") from None
+            signed_url = exc.headers.get("Location")
+            exc.close()
+            if not signed_url:
+                raise RuntimeError("GitHub artifact redirect had no Location")
+            parsed = urlsplit(signed_url)
+            host = (parsed.hostname or "").lower()
+            allowed = (
+                host.endswith(".blob.core.windows.net")
+                or host.endswith(".actions.githubusercontent.com")
+                or host.endswith(".githubusercontent.com")
+                or host in ("github.com", "api.github.com")
+            )
+            if parsed.scheme != "https" or not allowed or parsed.username or parsed.password:
+                raise RuntimeError("Unexpected artifact redirect destination; refusing")
+            # Auth is intentionally omitted for the short-lived signed redirect URL.
+            response = urllib.request.urlopen(
+                urllib.request.Request(
+                    signed_url, headers={"User-Agent":"PencilForecastResearch/0.3"},
+                    method="GET"), timeout=35)
+        with response:
+            length = response.headers.get("Content-Length")
+            if length and int(length) > MAX_ZIP_BYTES:
+                raise ValueError("Artifact exceeds size limit")
+            data = response.read(MAX_ZIP_BYTES + 1)
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"Artifact download failed: HTTP {exc.code}") from None
-    except (urllib.error.URLError,TimeoutError) as exc:
+        host = urlsplit(exc.url).hostname or "unknown"
+        # No signed URL, query string, token or response body is ever logged.
+        raise RuntimeError(f"Artifact download rejected by {host} (HTTP {exc.code})") from None
+    except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError(f"Artifact download failed: {type(exc).__name__}") from None
-    if len(content)>MAX_ZIP_BYTES:
+    if len(data) > MAX_ZIP_BYTES:
         raise ValueError("Artifact exceeds size limit")
-    return content
+    return data
 
 def decode_forecasts(data):
     """Inspect only one named file; no zip extraction or filesystem traversal."""
