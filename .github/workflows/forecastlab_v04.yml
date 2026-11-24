@@ -1,0 +1,57 @@
+name: PencilForecast v0.4 - paired news research (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "discover: no AI calls; paired: max 2 pinned free calls"
+        type: choice
+        options: [discover, paired]
+        default: discover
+      post_id:
+        description: "0 = prioritize shortest eligible question; or explicit post ID"
+        type: string
+        default: "0"
+  pull_request:
+    paths:
+      - "research/forecastlab_v04.py"
+      - "research/test_forecastlab_v04.py"
+      - ".github/workflows/forecastlab_v04.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m unittest discover -s research -p "test_forecastlab_v04.py" -v
+  experiment:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Read only / bounded free inference
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MODE: ${{ inputs.mode }}
+          POST_ID: ${{ inputs.post_id }}
+        run: python research/forecastlab_v04.py --mode "$MODE" --post-id "$POST_ID"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pencil-v04-paired-research
+          path: v04_output/
+          retention-days: 90
+          if-no-files-found: warn
