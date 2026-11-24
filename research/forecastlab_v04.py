@@ -143,10 +143,25 @@ def pair_metrics(pairs, outcomes):
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument("--mode",choices=("discover","paired"),default="discover")
+    parser.add_argument("--mode",choices=("discover","paired","score"),default="discover")
     parser.add_argument("--post-id",type=int,default=0)
     parser.add_argument("--out",type=Path,default=Path("v04_output"))
+    parser.add_argument("--records",type=Path,nargs="+")
+    parser.add_argument("--outcomes",type=Path)
     args=parser.parse_args()
+    if args.mode=="score":
+        if not args.records or not args.outcomes:
+            raise ValueError("score requires --records and --outcomes")
+        pairs=[json.loads(p.read_text(encoding="utf-8")) for p in args.records]
+        outcomes=json.loads(args.outcomes.read_text(encoding="utf-8"))
+        rows=pair_metrics(pairs,outcomes)
+        fields=("control_brier","news_brier","neutral_brier","fixed_shrink_brier","news_gain")
+        report={"resolved_pairs":len(rows),"unscored_records":len(pairs)-len(rows),
+            "means":{k:sum(r[k] for r in rows)/len(rows) for k in fields} if rows else {},
+            "rows":rows,"note":"Exploratory scores only; no automatic model promotion."}
+        args.out.mkdir(parents=True,exist_ok=True)
+        lab.write_json(args.out/"paired_scores.json",report)
+        print(json.dumps(report,indent=2));return
     if args.post_id<0: raise ValueError("Invalid post ID")
     now=lab.utc_now()
     posts=[lab.get_post(args.post_id)] if args.post_id else lab.list_posts(80)
